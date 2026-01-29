@@ -1,16 +1,18 @@
 const puppeteer = require('puppeteer');
 const http = require('http');
 
-// 1. KEEP-ALIVE SERVER
+// 1. KEEP-ALIVE SERVER (Critical for Render Free Tier)
 const PORT = process.env.PORT || 10000;
 http.createServer((req, res) => {
     res.writeHead(200);
     res.end('Drednot Radar is Online');
-}).listen(PORT);
+}).listen(PORT, () => {
+    console.log(`🚀 Keep-alive server listening on port ${PORT}`);
+});
 
 // 2. CONFIGURATION
 const ANON_KEY = process.env.ANON_KEY || 'mpJSjS3N81osIeKsOEzikewb';
-const SHIP_ID = '4E10ED'; // Your ship Sandim's ID
+const SHIP_ID = '4E10ED'; // Sandim Ship ID
 
 async function main() {
     while (true) {
@@ -28,15 +30,21 @@ async function runBot() {
     console.log("🛠️ Launching Browser...");
     const browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage', 
+            '--disable-gpu',
+            '--window-size=1280,720'
+        ]
     });
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
 
-    // --- STEP 1: DIRECT KEY LOGIN ---
+    // --- STEP 1: LOGIN ---
     console.log("🔗 Connecting to Drednot...");
-    await page.goto('https://drednot.io', { waitUntil: 'networkidle2' });
+    await page.goto('https://drednot.io', { waitUntil: 'networkidle2', timeout: 60000 });
 
     console.log("🔑 Injecting Account Key...");
     await page.evaluate((key) => {
@@ -49,19 +57,24 @@ async function runBot() {
     // --- STEP 2: SEARCH & JOIN SANDIM ---
     console.log(`🚢 Searching for Sandim {${SHIP_ID}}...`);
     
+    // Give the UI time to load after reload
+    await new Promise(r => setTimeout(r, 5000));
+
     try {
-        // Wait for the search box (visible in your screenshot)
-        const searchBoxSelector = 'input[placeholder="Search..."], .ship-list-search input, .sidebar input';
-        await page.waitForSelector(searchBoxSelector, { timeout: 15000 });
-        await page.type(searchBoxSelector, SHIP_ID);
-        console.log("⌨️ Typed Ship ID into search...");
+        // Find the search input by looking for any input field
+        const searchInput = await page.waitForSelector('input', { timeout: 15000 });
+        
+        // Click and clear the input before typing
+        await searchInput.click({ clickCount: 3 });
+        await searchInput.type(SHIP_ID);
+        console.log("⌨️ ID Typed. Filtering list...");
 
-        await new Promise(r => setTimeout(r, 2000)); // Wait for list to filter
+        await new Promise(r => setTimeout(r, 3000));
 
-        // Find the ship card that contains the ID
-        const clicked = await page.evaluate((targetId) => {
-            const cards = Array.from(document.querySelectorAll('.ship-card'));
-            const target = cards.find(c => c.innerText.includes(targetId));
+        // Attempt to find the ship card and click it
+        const clickSuccess = await page.evaluate((id) => {
+            const cards = Array.from(document.querySelectorAll('.ship-card, div, span'));
+            const target = cards.find(c => c.innerText && c.innerText.includes(id));
             if (target) {
                 target.click();
                 return true;
@@ -69,66 +82,76 @@ async function runBot() {
             return false;
         }, SHIP_ID);
 
-        if (!clicked) throw new Error("Ship card not found after search.");
-        console.log("🎯 Clicked Sandim card!");
+        if (clickSuccess) {
+            console.log("🎯 Ship card clicked.");
+        } else {
+            console.log("⚠️ Could not find card via text. Using keyboard to select...");
+            await page.keyboard.press('Tab');
+            await page.keyboard.press('ArrowDown');
+        }
 
-        // Wait for the green "Play" button to appear on the card or popup
-        await new Promise(r => setTimeout(r, 2000));
-        await page.keyboard.press('Enter'); // Standard shortcut to join selected ship
-        
-        // Final fallback to click the 'btn-play' if Enter didn't work
-        const playBtn = '.btn-play, .btn-green';
-        await page.waitForSelector(playBtn, { visible: true, timeout: 5000 }).catch(() => {});
-        await page.click(playBtn).catch(() => {});
+        // Final Join Sequence: Enter key is the most reliable way to trigger "Play"
+        await new Promise(r => setTimeout(r, 1000));
+        await page.keyboard.press('Enter');
+        console.log("🚀 Sent Enter command to join.");
 
     } catch (e) {
-        console.log("⚠️ Search failed. Trying direct coordinate click on ship area...");
-        await page.mouse.click(800, 570); // Right-side area where Sandim was in your pic
+        console.log("⚠️ UI Interaction failed. Attempting brute-force Join...");
+        await page.keyboard.press('Tab');
+        await page.keyboard.type(SHIP_ID);
         await new Promise(r => setTimeout(r, 1000));
+        await page.keyboard.press('Enter');
         await page.keyboard.press('Enter');
     }
 
-    console.log("✅ Should be entering game...");
-    await new Promise(r => setTimeout(r, 10000));
+    console.log("✅ Sequence complete. Waiting for game world...");
+    // Render Free Tier needs a long time to load the actual game world
+    await new Promise(r => setTimeout(r, 20000));
 
     // --- STEP 3: RADAR LOOP ---
     while (browser.isConnected()) {
         await updateRadar(page);
-        await new Promise(r => setTimeout(r, 25000));
+        // Wait 30 seconds between updates to avoid crashing the slow Render CPU
+        await new Promise(r => setTimeout(r, 30000));
     }
 }
 
 async function updateRadar(page) {
     try {
-        const data = await page.evaluate(() => {
+        const radarData = await page.evaluate(() => {
             if (!window.game || !window.game.world) return null;
             const ents = window.game.world.entities;
             let spotted = [];
             for (let id in ents) {
                 const e = ents[id];
+                // Target other ships
                 if (e && e.pos && (e.type === 'ship' || e.clazz === 'Ship')) {
-                    // Filter out own ship if needed, but for now we list all
                     spotted.push(`${e.name || 'Ship'}: ${Math.round(e.pos.x)},${Math.round(e.pos.y)}`);
                 }
             }
-            return spotted.slice(0, 3).join(' | ');
+            return spotted.length > 0 ? spotted.slice(0, 3).join(' | ') : "No ships in range";
         });
 
-        if (data) {
-            console.log("📡 Radar Update:", data);
+        if (radarData) {
+            console.log("📡 Radar Update:", radarData);
+            
+            // Try to update MOTD
             await page.evaluate((text) => {
                 const editBtn = document.getElementById("motd-edit-button");
                 const textField = document.getElementById("motd-edit-text");
                 const saveBtn = document.querySelector("#motd-edit .btn-green");
+
                 if (editBtn && textField && saveBtn) {
                     editBtn.click();
-                    textField.value = `Radar: ${text}`;
+                    textField.value = `RADAR: ${text}`;
                     textField.dispatchEvent(new Event('input', { bubbles: true }));
                     saveBtn.click();
                 }
-            }, data);
+            }, radarData);
         }
-    } catch (e) { /* ignore loop errors */ }
+    } catch (e) {
+        console.log("Radar cycle skipped (Game loading or UI hidden).");
+    }
 }
 
 main();
