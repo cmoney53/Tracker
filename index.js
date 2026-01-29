@@ -1,11 +1,11 @@
 const puppeteer = require('puppeteer');
 const http = require('http');
 
-// 1. KEEP-ALIVE SERVER (Prevents Render from killing the bot)
+// 1. KEEP-ALIVE SERVER (For Render)
 const PORT = process.env.PORT || 10000;
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end('Drednot Bot is active');
+    res.end('Drednot Bot is Online');
 }).listen(PORT);
 
 // 2. CONFIGURATION
@@ -18,13 +18,14 @@ async function main() {
             await runBot();
         } catch (err) {
             console.error("❌ ERROR:", err.message);
-            console.log("♻️ Restarting session in 15 seconds...");
-            await new Promise(r => setTimeout(r, 15000));
+            console.log("♻️ Restarting session in 20 seconds...");
+            await new Promise(r => setTimeout(r, 20000));
         }
     }
 }
 
 async function runBot() {
+    console.log("🛠️ Launching Browser...");
     const browser = await puppeteer.launch({
         headless: "new",
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
@@ -33,49 +34,51 @@ async function runBot() {
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
 
-    // --- STEP 1: DIRECT KEY INJECTION (FIXED) ---
-    console.log("🔗 Loading Drednot...");
-    await page.goto('https://drednot.io', { waitUntil: 'networkidle2' });
+    // --- STEP 1: KEY INJECTION ---
+    console.log("🔗 Connecting to Drednot...");
+    await page.goto('https://drednot.io', { waitUntil: 'networkidle2', timeout: 60000 });
 
-    console.log("🔑 Injecting Account Key via LocalStorage...");
+    console.log("🔑 Injecting Account Key...");
     await page.evaluate((key) => {
-        // This sets the key directly in the browser memory
         localStorage.setItem('drednot_anon_id', key);
         localStorage.setItem('drednot_backup_id', key);
-        // Force a page reload to apply the key
-        window.location.reload();
     }, ANON_KEY);
+    
+    // --- STEP 2: NAVIGATION & LOADING ---
+    console.log("🚢 Heading to Ship Invite...");
+    await page.goto(INVITE_URL, { waitUntil: 'networkidle2', timeout: 90000 });
 
-    // Wait for reload
-    await page.waitForNavigation({ waitUntil: 'networkidle2' });
-    console.log("✅ Key injected and page reloaded.");
-
-    // --- STEP 2: JOIN SHIP ---
-    console.log("🚢 Navigating to Ship Invite...");
-    await page.goto(INVITE_URL, { waitUntil: 'networkidle2' });
-
-    console.log("⏳ Waiting for game to load...");
-    await new Promise(r => setTimeout(r, 5000)); // Wait for assets
-
-    // Try to click the Play button
+    console.log("⏳ Waiting for Game Assets (60s max)...");
+    const playSelector = '.btn-play, button.btn-play, #join-btn';
+    
     try {
-        await page.waitForSelector('.btn-play', { timeout: 15000 });
-        await page.click('.btn-play');
-        console.log("🎮 Bot is in-game!");
+        // Wait for the button to appear in the code
+        await page.waitForSelector(playSelector, { visible: true, timeout: 60000 });
+        await new Promise(r => setTimeout(r, 5000)); // Extra 5s for the game to "settle"
+
+        // Click the button via Page Context
+        await page.click(playSelector);
+        console.log("🎮 Play button clicked!");
     } catch (e) {
-        console.log("⚠️ Play button not found, bot might already be in-game.");
+        console.log("⚠️ Play selector failed. Attempting Coordinate Click fallback...");
+        // Fallback: Click the center-bottom area where the play button usually sits
+        await page.mouse.click(640, 450); 
     }
+
+    // Final check for entry
+    await new Promise(r => setTimeout(r, 10000));
+    console.log("✅ Bot should be in-game now.");
 
     // --- STEP 3: RADAR LOOP ---
     while (browser.isConnected()) {
         await updateRadar(page);
-        await new Promise(r => setTimeout(r, 20000));
+        await new Promise(r => setTimeout(r, 25000)); // 25s intervals
     }
 }
 
 async function updateRadar(page) {
     try {
-        const shipData = await page.evaluate(() => {
+        const data = await page.evaluate(() => {
             if (!window.game || !window.game.world) return null;
             const ents = window.game.world.entities;
             let spotted = [];
@@ -88,24 +91,22 @@ async function updateRadar(page) {
             return spotted.slice(0, 3).join(' | ');
         });
 
-        if (shipData) {
-            console.log("📡 Radar Update:", shipData);
+        if (data) {
+            console.log("📡 Radar Update:", data);
             await page.evaluate((text) => {
-                // Try to find MOTD edit UI
                 const editBtn = document.getElementById("motd-edit-button");
                 const textField = document.getElementById("motd-edit-text");
                 const saveBtn = document.querySelector("#motd-edit .btn-green");
-
                 if (editBtn && textField && saveBtn) {
                     editBtn.click();
                     textField.value = `Radar: ${text}`;
                     textField.dispatchEvent(new Event('input', { bubbles: true }));
                     saveBtn.click();
                 }
-            }, shipData);
+            }, data);
         }
     } catch (e) {
-        console.log("Radar loop hiccup...");
+        console.log("Radar loop failed, retrying...");
     }
 }
 
