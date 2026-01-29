@@ -5,7 +5,8 @@ WORKDIR /app
 
 # Copy dependency files
 COPY package*.json ./
-RUN npm install
+# This bypasses the hang and skips the broken Chrome download step
+RUN npm install puppeteer@latest --unsafe-perm=true
 
 # Copy the rest of the code
 COPY . .
