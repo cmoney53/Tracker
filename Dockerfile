@@ -23,7 +23,7 @@ COPY package*.json ./
 # 6. Install dependencies
 # We removed --unsafe-perm to stop the npm warning. 
 # Puppeteer's base image handles permissions correctly.
-RUN npm install
+RUN npm install puppeteer@latest
 
 # 7. Copy your bot code (index.js, etc.)
 COPY . .
