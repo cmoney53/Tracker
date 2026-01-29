@@ -1,11 +1,11 @@
 {
-  "name": "drednot-radar-bot",
-  "version": "1.0.0",
+  "name": "drednot-tracker",
+  "version": "1.2.0",
   "main": "index.js",
-  "dependencies": {
-    "puppeteer": "^24.1.0"
-  },
   "scripts": {
     "start": "node index.js"
+  },
+  "dependencies": {
+    "puppeteer": "^24.1.0"
   }
 }
