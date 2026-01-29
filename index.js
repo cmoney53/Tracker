@@ -1,7 +1,8 @@
 const puppeteer = require('puppeteer');
 const http = require('http');
 
-// 1. KEEP-ALIVE SERVER (Critical for Render Free Tier)
+// 1. KEEP-ALIVE SERVER
+// This prevents Render from shutting down your bot due to inactivity.
 const PORT = process.env.PORT || 10000;
 http.createServer((req, res) => {
     res.writeHead(200);
@@ -12,7 +13,7 @@ http.createServer((req, res) => {
 
 // 2. CONFIGURATION
 const ANON_KEY = process.env.ANON_KEY || 'mpJSjS3N81osIeKsOEzikewb';
-const SHIP_ID = '4E10ED'; // Sandim Ship ID
+const INVITE_URL = 'https://drednot.io/invite/JcuHzlW91Qd-z3tZ5HePVzfY';
 
 async function main() {
     while (true) {
@@ -34,16 +35,15 @@ async function runBot() {
             '--no-sandbox', 
             '--disable-setuid-sandbox', 
             '--disable-dev-shm-usage', 
-            '--disable-gpu',
-            '--window-size=1280,720'
+            '--disable-gpu'
         ]
     });
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
 
-    // --- STEP 1: LOGIN ---
-    console.log("🔗 Connecting to Drednot...");
+    // --- STEP 1: LOGIN VIA HOME PAGE ---
+    console.log("🔗 Connecting to Drednot home for login...");
     await page.goto('https://drednot.io', { waitUntil: 'networkidle2', timeout: 60000 });
 
     console.log("🔑 Injecting Account Key...");
@@ -52,102 +52,68 @@ async function runBot() {
         localStorage.setItem('drednot_backup_id', key);
     }, ANON_KEY);
     
-    await page.reload({ waitUntil: 'networkidle2' });
+    // --- STEP 2: JOIN VIA DIRECT INVITE ---
+    console.log("🚀 Jumping directly to Sandim invite link...");
+    await page.goto(INVITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    // --- STEP 2: SEARCH & JOIN SANDIM ---
-    console.log(`🚢 Searching for Sandim {${SHIP_ID}}...`);
-    
-    // Give the UI time to load after reload
-    await new Promise(r => setTimeout(r, 5000));
+    console.log("⏳ Waiting for game to initialize...");
+    // We wait 15 seconds for the game assets and canvas to load in the background.
+    await new Promise(r => setTimeout(r, 15000));
 
-    try {
-        // Find the search input by looking for any input field
-        const searchInput = await page.waitForSelector('input', { timeout: 15000 });
-        
-        // Click and clear the input before typing
-        await searchInput.click({ clickCount: 3 });
-        await searchInput.type(SHIP_ID);
-        console.log("⌨️ ID Typed. Filtering list...");
+    console.log("⌨️ Pressing ENTER to join ship...");
+    // Drednot uses the Enter key as a shortcut to join/spawn.
+    // We press it twice to ensure it clears any overlays.
+    await page.keyboard.press('Enter');
+    await new Promise(r => setTimeout(r, 1500));
+    await page.keyboard.press('Enter');
 
-        await new Promise(r => setTimeout(r, 3000));
-
-        // Attempt to find the ship card and click it
-        const clickSuccess = await page.evaluate((id) => {
-            const cards = Array.from(document.querySelectorAll('.ship-card, div, span'));
-            const target = cards.find(c => c.innerText && c.innerText.includes(id));
-            if (target) {
-                target.click();
-                return true;
-            }
-            return false;
-        }, SHIP_ID);
-
-        if (clickSuccess) {
-            console.log("🎯 Ship card clicked.");
-        } else {
-            console.log("⚠️ Could not find card via text. Using keyboard to select...");
-            await page.keyboard.press('Tab');
-            await page.keyboard.press('ArrowDown');
-        }
-
-        // Final Join Sequence: Enter key is the most reliable way to trigger "Play"
-        await new Promise(r => setTimeout(r, 1000));
-        await page.keyboard.press('Enter');
-        console.log("🚀 Sent Enter command to join.");
-
-    } catch (e) {
-        console.log("⚠️ UI Interaction failed. Attempting brute-force Join...");
-        await page.keyboard.press('Tab');
-        await page.keyboard.type(SHIP_ID);
-        await new Promise(r => setTimeout(r, 1000));
-        await page.keyboard.press('Enter');
-        await page.keyboard.press('Enter');
-    }
-
-    console.log("✅ Sequence complete. Waiting for game world...");
-    // Render Free Tier needs a long time to load the actual game world
+    console.log("✅ Sequence complete. Waiting for world to load...");
     await new Promise(r => setTimeout(r, 20000));
 
     // --- STEP 3: RADAR LOOP ---
     while (browser.isConnected()) {
         await updateRadar(page);
-        // Wait 30 seconds between updates to avoid crashing the slow Render CPU
-        await new Promise(r => setTimeout(r, 30000));
+        // We wait 30 seconds between updates to prevent Render's CPU from capping out.
+        await new Promise(r => setTimeout(r, 30000)); 
     }
 }
 
 async function updateRadar(page) {
     try {
-        const radarData = await page.evaluate(() => {
+        const data = await page.evaluate(() => {
+            // Check if the game engine is accessible in the window
             if (!window.game || !window.game.world) return null;
+            
             const ents = window.game.world.entities;
             let spotted = [];
+            
             for (let id in ents) {
                 const e = ents[id];
-                // Target other ships
+                // Filter for ship entities with valid positions
                 if (e && e.pos && (e.type === 'ship' || e.clazz === 'Ship')) {
                     spotted.push(`${e.name || 'Ship'}: ${Math.round(e.pos.x)},${Math.round(e.pos.y)}`);
                 }
             }
-            return spotted.length > 0 ? spotted.slice(0, 3).join(' | ') : "No ships in range";
+            // Return the first 3 ships found to keep the MOTD clean
+            return spotted.length > 0 ? spotted.slice(0, 3).join(' | ') : "Scanning...";
         });
 
-        if (radarData) {
-            console.log("📡 Radar Update:", radarData);
+        if (data) {
+            console.log("📡 Radar Update:", data);
             
-            // Try to update MOTD
+            // Attempt to update the in-game MOTD with the radar data
             await page.evaluate((text) => {
                 const editBtn = document.getElementById("motd-edit-button");
                 const textField = document.getElementById("motd-edit-text");
                 const saveBtn = document.querySelector("#motd-edit .btn-green");
-
+                
                 if (editBtn && textField && saveBtn) {
                     editBtn.click();
-                    textField.value = `RADAR: ${text}`;
+                    textField.value = `Radar: ${text}`;
                     textField.dispatchEvent(new Event('input', { bubbles: true }));
                     saveBtn.click();
                 }
-            }, radarData);
+            }, data);
         }
     } catch (e) {
         console.log("Radar cycle skipped (Game loading or UI hidden).");
