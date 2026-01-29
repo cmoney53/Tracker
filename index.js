@@ -13,7 +13,7 @@ http.createServer((req, res) => {
 
 // 2. CONFIGURATION
 const ANON_KEY = process.env.ANON_KEY || 'mpJSjS3N81osIeKsOEzikewb';
-const INVITE_URL = 'https://drednot.io/invite/JcuHzlW91Qd-z3tZ5HePVzfY';
+const INVITE_URL = 'https://drednot.io/invite/w-1CqdGdAXpS-fxZL6nSpVXc';
 
 async function main() {
     while (true) {
