@@ -1,21 +1,17 @@
 const puppeteer = require('puppeteer');
 const http = require('http');
 
-// 1. STATUS MONITOR (URL/screenshot)
-let lastScreenshot = null;
+// 1. MONITORING SERVER
 const PORT = process.env.PORT || 10000;
+let lastScreenshot = null;
 
 http.createServer(async (req, res) => {
     if (req.url === '/screenshot') {
-        if (!lastScreenshot) {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            return res.end('<h1>Loading...</h1><p>Wait 20s then refresh.</p>');
-        }
+        if (!lastScreenshot) return res.end("Bot is starting, refresh in 20s...");
         res.writeHead(200, { 'Content-Type': 'image/png' });
         res.end(lastScreenshot);
     } else {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Bot Status: Running</h1><p><a href="/screenshot">View Screen</a></p>');
+        res.end("Bot Active. View /screenshot to see radar status.");
     }
 }).listen(PORT);
 
@@ -23,81 +19,105 @@ http.createServer(async (req, res) => {
 const ANON_KEY = process.env.ANON_KEY || 'mpJSjS3N81osIeKsOEzikewb';
 const INVITE_URL = 'https://drednot.io/invite/w-1CqdGdAXpS-fxZL6nSpVXc';
 
-async function main() {
-    while (true) {
-        try {
-            await runBot();
-        } catch (err) {
-            console.error("❌ CRASH:", err.message);
-            await new Promise(r => setTimeout(r, 20000));
-        }
-    }
-}
-
 async function runBot() {
-    console.log("🛠️ Initializing Browser (Auto-detecting path)...");
+    console.log("🛠️ Launching Bot (Native Mode + Radar)...");
     
-    const browser = await puppeteer.launch({
-        headless: "new",
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--use-gl=swiftshader',
-            '--enable-unsafe-swiftshader', // Required for 2026 WebGL fallback
-            '--enable-webgl',
-            '--ignore-gpu-blocklist'
-        ]
-    });
+    try {
+        const browser = await puppeteer.launch({
+            headless: "new",
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-gpu',
+                '--use-gl=swiftshader',
+                '--enable-unsafe-swiftshader',
+                '--enable-webgl',
+                '--ignore-gpu-blocklist'
+            ]
+        });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720 });
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1280, height: 720 });
 
-    // Live screenshot updates
-    setInterval(async () => {
-        try { lastScreenshot = await page.screenshot(); } catch (e) {}
-    }, 5000);
+        // Screenshot monitoring loop
+        setInterval(async () => {
+            try { lastScreenshot = await page.screenshot(); } catch (e) {}
+        }, 5000);
 
-    // STEP 1: LOGIN
-    console.log("🔗 Logging in...");
-    await page.goto('https://drednot.io', { waitUntil: 'networkidle2' });
-    await page.evaluate((key) => {
-        localStorage.setItem('drednot_anon_id', key);
-        localStorage.setItem('drednot_backup_id', key);
-    }, ANON_KEY);
+        // STEP 1: AUTHENTICATION
+        console.log("🔗 Setting up session...");
+        await page.goto('https://drednot.io', { waitUntil: 'networkidle2' });
+        await page.evaluate((key) => {
+            localStorage.setItem('drednot_anon_id', key);
+            localStorage.setItem('drednot_backup_id', key);
+        }, ANON_KEY);
 
-    // STEP 2: JOIN SHIP
-    console.log("🚀 Navigating to Invite...");
-    await page.goto(INVITE_URL, { waitUntil: 'networkidle2' });
+        // STEP 2: JOIN SHIP
+        console.log("🚀 Navigating to ship...");
+        await page.goto(INVITE_URL, { waitUntil: 'networkidle2' });
 
-    console.log("⏳ Initializing (45s)... Check /screenshot for 'red box' errors.");
-    await new Promise(r => setTimeout(r, 45000));
+        // Wait for game engine (Software rendering is slow)
+        await new Promise(r => setTimeout(r, 45000));
 
-    // Automated Spawn Sequence
-    console.log("⌨️ Pressing Enter...");
-    await page.mouse.click(640, 360); 
-    await page.keyboard.press('Enter');
-    await new Promise(r => setTimeout(r, 2000));
-    await page.keyboard.press('Enter');
+        // SPAWN
+        console.log("⌨️ Spawning...");
+        await page.mouse.click(640, 360); 
+        await page.keyboard.press('Enter');
+        await new Promise(r => setTimeout(r, 2000));
+        await page.keyboard.press('Enter');
 
-    // STEP 3: RADAR LOOP
-    while (browser.isConnected()) {
-        try {
-            const data = await page.evaluate(() => {
-                if (!window.game || !window.game.world) return null;
-                const ents = window.game.world.entities;
-                let found = [];
-                for (let id in ents) {
-                    const e = ents[id];
-                    if (e && e.type === 'ship') found.push(`${e.name}: ${Math.round(e.pos.x)},${Math.round(e.pos.y)}`);
-                }
-                return found.slice(0, 3).join(' | ');
-            });
-            if (data) console.log("📡 Radar:", data);
-        } catch (e) {}
-        await new Promise(r => setTimeout(r, 30000));
+        // STEP 3: RADAR TO MOTD LOOP
+        console.log("📡 Starting Radar Loop...");
+        while (browser.isConnected()) {
+            await updateRadarMOTD(page);
+            await new Promise(r => setTimeout(r, 30000)); // Update every 30 seconds
+        }
+
+    } catch (err) {
+        console.error("❌ CRASH:", err.message);
+        setTimeout(runBot, 20000);
     }
 }
 
-main();
+async function updateRadarMOTD(page) {
+    try {
+        const radarData = await page.evaluate(() => {
+            if (!window.game || !window.game.world) return null;
+            
+            const entities = window.game.world.entities;
+            let foundShips = [];
+
+            for (let id in entities) {
+                const e = entities[id];
+                // Check if entity is a ship and not OUR ship (optional check)
+                if (e && (e.type === 'ship' || e.clazz === 'Ship')) {
+                    const name = e.name || "Unknown Ship";
+                    const x = Math.round(e.pos.x);
+                    const y = Math.round(e.pos.y);
+                    foundShips.push(`${name} [${x}, ${y}]`);
+                }
+            }
+            return foundShips.length > 0 ? foundShips.slice(0, 3).join(' | ') : "Radar Clear";
+        });
+
+        if (radarData) {
+            console.log("📡 Radar Found:", radarData);
+            await page.evaluate((text) => {
+                const editBtn = document.getElementById("motd-edit-button");
+                const textField = document.getElementById("motd-edit-text");
+                const saveBtn = document.querySelector("#motd-edit .btn-green");
+
+                if (editBtn && textField && saveBtn) {
+                    editBtn.click();
+                    textField.value = `RADAR: ${text}`;
+                    textField.dispatchEvent(new Event('input', { bubbles: true }));
+                    saveBtn.click();
+                }
+            }, radarData);
+        }
+    } catch (e) {
+        console.log("📡 Radar scan skipped (Game busy)");
+    }
+}
+
+runBot();
