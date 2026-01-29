@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer');
 const http = require('http');
 
 // 1. MONITOR SERVER
-// This creates a web page you can visit to see the bot's screen.
+// Visit your Render URL + /screenshot to see the bot's screen!
 let lastScreenshot = null;
 const PORT = process.env.PORT || 10000;
 
@@ -43,23 +43,29 @@ async function runBot() {
     console.log("🛠️ Launching Browser...");
     const browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage', 
+            '--disable-gpu',
+            '--use-gl=swiftshader' // Essential for loading game graphics on a server
+        ]
     });
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
 
     // --- SCREENSHOT BACKGROUND THREAD ---
-    // Updates the global variable every 3 seconds so you can watch live.
+    // This updates the monitor image every 4 seconds.
     setInterval(async () => {
         try {
             lastScreenshot = await page.screenshot();
-        } catch (e) { /* ignore screenshot errors */ }
-    }, 3000);
+        } catch (e) { /* ignore */ }
+    }, 4000);
 
     // --- STEP 1: LOGIN ---
-    console.log("🔗 Applying credentials...");
-    await page.goto('https://drednot.io', { waitUntil: 'networkidle2' });
+    console.log("🔗 Applying credentials via Homepage...");
+    await page.goto('https://drednot.io', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.evaluate((key) => {
         localStorage.setItem('drednot_anon_id', key);
         localStorage.setItem('drednot_backup_id', key);
@@ -67,19 +73,19 @@ async function runBot() {
 
     // --- STEP 2: JOIN SHIP ---
     console.log("🚀 Navigating to Invite Link...");
-    await page.goto(INVITE_URL, { waitUntil: 'networkidle2' });
+    await page.goto(INVITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    console.log("⏳ Loading Game Engine (20s)... Check /screenshot for progress.");
-    await new Promise(r => setTimeout(r, 20000));
+    console.log("⏳ Initializing (25s)... Watch /screenshot to see the game load.");
+    await new Promise(r => setTimeout(r, 25000));
 
-    // Force focus and spawn
-    console.log("⌨️ Pressing ENTER to join...");
-    await page.mouse.click(640, 360); // Click center to focus
+    // Automated Join Sequence
+    console.log("⌨️ Sending Spawn Command...");
+    await page.mouse.click(640, 360); // Click center to focus the game
     await page.keyboard.press('Enter');
     await new Promise(r => setTimeout(r, 2000));
     await page.keyboard.press('Enter');
 
-    console.log("✅ Joined! Radar starting...");
+    console.log("✅ Joined ship. Starting Radar loop...");
 
     // --- STEP 3: RADAR LOOP ---
     while (browser.isConnected()) {
@@ -117,7 +123,9 @@ async function updateRadar(page) {
                 }
             }, data);
         }
-    } catch (e) { /* Game UI not ready yet */ }
+    } catch (e) {
+        // Silent catch for loading phases
+    }
 }
 
 main();
