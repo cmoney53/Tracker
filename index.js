@@ -1,38 +1,25 @@
 const puppeteer = require('puppeteer');
 const http = require('http');
 
-// 1. MONITOR & REMOTE CONTROL SERVER
+// 1. MONITOR SERVER
+// Visit your Render URL + /screenshot to see the bot's screen.
 let lastScreenshot = null;
 const PORT = process.env.PORT || 10000;
 
-const server = http.createServer(async (req, res) => {
-    // Check what the bot sees: tracker-1-ynsv.onrender.com/screenshot
+http.createServer(async (req, res) => {
     if (req.url === '/screenshot') {
         if (!lastScreenshot) {
             res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end('<h1>Loading...</h1><p>Wait 15s then refresh.</p>');
+            res.end('<h1>Bot is starting...</h1><p>Please refresh in 15 seconds.</p>');
             return;
         }
         res.writeHead(200, { 'Content-Type': 'image/png' });
         res.end(lastScreenshot);
-    } 
-    // Force the bot to join: tracker-1-ynsv.onrender.com/join
-    else if (req.url === '/join') {
+    } else {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Command Sent: ENTER</h1>');
-        console.log("⌨️ Manual Join triggered via URL");
-        if (global.botPage) {
-            await global.botPage.mouse.click(640, 360);
-            await global.botPage.keyboard.press('Enter');
-        }
+        res.end('<h1>Bot Live</h1><p>View: <a href="/screenshot">/screenshot</a></p>');
     }
-    else {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Bot Control</h1><p><a href="/screenshot">View Screen</a> | <a href="/join">Force Join (Enter)</a></p>');
-    }
-});
-
-server.listen(PORT);
+}).listen(PORT);
 
 // 2. CONFIGURATION
 const ANON_KEY = process.env.ANON_KEY || 'mpJSjS3N81osIeKsOEzikewb';
@@ -57,18 +44,19 @@ async function runBot() {
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-gpu',           // Essential to bypass the WebGL error
-            '--use-gl=swiftshader',    // Forces CPU rendering
-            '--enable-webgl',
-            '--hide-scrollbars'
+            '--disable-gpu',                // Essential for servers
+            '--use-gl=swiftshader',         // Force software-based WebGL
+            '--enable-webgl',               // Ensure WebGL is allowed
+            '--hide-scrollbars',
+            '--mute-audio',
+            '--ignore-gpu-blocklist'        // Force bypass of GPU requirement
         ]
     });
 
     const page = await browser.newPage();
-    global.botPage = page; 
     await page.setViewport({ width: 1280, height: 720 });
 
-    // Background Screenshot Thread (Every 4 seconds)
+    // BACKGROUND SCREENSHOT LOOP
     setInterval(async () => {
         try {
             lastScreenshot = await page.screenshot();
@@ -76,29 +64,32 @@ async function runBot() {
     }, 4000);
 
     // STEP 1: LOGIN
-    console.log("🔗 Logging in...");
-    await page.goto('https://drednot.io', { waitUntil: 'networkidle2' });
+    console.log("🔗 Applying Session Key...");
+    await page.goto('https://drednot.io', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.evaluate((key) => {
         localStorage.setItem('drednot_anon_id', key);
         localStorage.setItem('drednot_backup_id', key);
     }, ANON_KEY);
 
-    // STEP 2: JOIN SHIP
-    console.log("🚀 Navigating to Invite Link...");
-    await page.goto(INVITE_URL, { waitUntil: 'networkidle2' });
+    // STEP 2: JOIN
+    console.log("🚀 Navigating to Ship...");
+    await page.goto(INVITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    console.log("⏳ Initializing (30s)... Check /screenshot to verify the error is gone.");
-    await new Promise(r => setTimeout(r, 30000));
+    // ⏳ Software rendering is SLOW. We must wait longer for the "red box" to go away.
+    console.log("⏳ Initializing (45s)... Check /screenshot to verify WebGL loaded.");
+    await new Promise(r => setTimeout(r, 45000));
 
-    // Automated Spawn Attempt
+    // Automated Click & Spawn
+    console.log("⌨️ Sending Join Command...");
     await page.mouse.click(640, 360); 
     await page.keyboard.press('Enter');
-    console.log("✅ Join sequence finished.");
+    await new Promise(r => setTimeout(r, 2000));
+    await page.keyboard.press('Enter');
 
     // STEP 3: RADAR LOOP
     while (browser.isConnected()) {
         await updateRadar(page);
-        await new Promise(r => setTimeout(r, 30000));
+        await new Promise(r => setTimeout(r, 30000)); 
     }
 }
 
@@ -118,7 +109,7 @@ async function updateRadar(page) {
         });
 
         if (data) {
-            console.log("📡 Radar Update:", data);
+            console.log("📡 Radar:", data);
             await page.evaluate((text) => {
                 const editBtn = document.getElementById("motd-edit-button");
                 const textField = document.getElementById("motd-edit-text");
