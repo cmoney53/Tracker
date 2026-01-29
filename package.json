@@ -1,13 +1,11 @@
 {
-  "name": "drednot-tracker-bot",
+  "name": "drednot-radar-bot",
   "version": "1.0.0",
-  "description": "Drednot.io ship tracker",
   "main": "index.js",
+  "dependencies": {
+    "puppeteer": "^24.1.0"
+  },
   "scripts": {
     "start": "node index.js"
-  },
-  "dependencies": {
-    "puppeteer": "^21.0.0",
-    "dotenv": "^16.0.0"
   }
 }
