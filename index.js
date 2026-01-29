@@ -2,7 +2,6 @@ const puppeteer = require('puppeteer');
 const http = require('http');
 
 // 1. MONITOR SERVER
-// Visit your Render URL + /screenshot to see the bot's screen!
 let lastScreenshot = null;
 const PORT = process.env.PORT || 10000;
 
@@ -17,7 +16,7 @@ const server = http.createServer(async (req, res) => {
         res.end(lastScreenshot);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<h1>Drednot Bot Monitor</h1><p>View the live screen here: <a href="/screenshot">/screenshot</a></p>');
+        res.end('<h1>Drednot Bot Monitor</h1><p>View screen: <a href="/screenshot">/screenshot</a></p>');
     }
 });
 
@@ -40,23 +39,25 @@ async function main() {
 }
 
 async function runBot() {
-    console.log("🛠️ Launching Browser...");
+    console.log("🛠️ Launching Browser with WebGL Fixes...");
     const browser = await puppeteer.launch({
         headless: "new",
         args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage', 
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
             '--disable-gpu',
-            '--use-gl=swiftshader' // Essential for loading game graphics on a server
+            '--use-gl=swiftshader', // IMPORTANT: Fixes the WebGL error on Render
+            '--enable-webgl',
+            '--hide-scrollbars',
+            '--mute-audio'
         ]
     });
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 720 });
 
-    // --- SCREENSHOT BACKGROUND THREAD ---
-    // This updates the monitor image every 4 seconds.
+    // SCREENSHOT THREAD
     setInterval(async () => {
         try {
             lastScreenshot = await page.screenshot();
@@ -64,7 +65,7 @@ async function runBot() {
     }, 4000);
 
     // --- STEP 1: LOGIN ---
-    console.log("🔗 Applying credentials via Homepage...");
+    console.log("🔗 Logging in...");
     await page.goto('https://drednot.io', { waitUntil: 'networkidle2', timeout: 60000 });
     await page.evaluate((key) => {
         localStorage.setItem('drednot_anon_id', key);
@@ -75,17 +76,17 @@ async function runBot() {
     console.log("🚀 Navigating to Invite Link...");
     await page.goto(INVITE_URL, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    console.log("⏳ Initializing (25s)... Watch /screenshot to see the game load.");
+    console.log("⏳ Waiting for game to load (25s)... Watch /screenshot for the fix.");
     await new Promise(r => setTimeout(r, 25000));
 
-    // Automated Join Sequence
+    // Automated Spawn
     console.log("⌨️ Sending Spawn Command...");
-    await page.mouse.click(640, 360); // Click center to focus the game
+    await page.mouse.click(640, 360); 
     await page.keyboard.press('Enter');
     await new Promise(r => setTimeout(r, 2000));
     await page.keyboard.press('Enter');
 
-    console.log("✅ Joined ship. Starting Radar loop...");
+    console.log("✅ Joined ship. Running Radar...");
 
     // --- STEP 3: RADAR LOOP ---
     while (browser.isConnected()) {
@@ -123,9 +124,7 @@ async function updateRadar(page) {
                 }
             }, data);
         }
-    } catch (e) {
-        // Silent catch for loading phases
-    }
+    } catch (e) { /* ignore */ }
 }
 
 main();
