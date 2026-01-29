@@ -1,35 +1,39 @@
-# Use the official Puppeteer image as a base
+# 1. Start with the official Puppeteer image (highly recommended for 2026)
+# This image already contains a stable Chrome and many dependencies.
 FROM ghcr.io/puppeteer/puppeteer:latest
 
+# 2. Switch to root to install software-rendering libraries
 USER root
 
-# Install missing system dependencies for WebGL and Software Rendering
-RUN apt-get update && apt-get install -y \
-    libgbm-dev \
-    libasound2 \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libgtk-3-0 \
-    libx11-xcb1 \
-    libxss1 \
-    mesa-utils \
+# 3. Install Mesa and GBM libraries
+# These are essential for "SwiftShader" (Software WebGL) to work on Render.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
+    libgbm-dev \
+    mesa-utils \
     && rm -rf /var/lib/apt/lists/*
 
+# 4. Set the working directory
 WORKDIR /app
 
-# Copy dependency files
+# 5. Copy package files first
+# This speeds up future builds by only reinstalling packages if they change.
 COPY package*.json ./
 
-# Install dependencies
-# Using --unsafe-perm=true helps avoid permission issues with post-install scripts
-RUN npm install --unsafe-perm=true
+# 6. Install dependencies
+# We removed --unsafe-perm to stop the npm warning. 
+# Puppeteer's base image handles permissions correctly.
+RUN npm install
 
-# Copy the rest of the code
+# 7. Copy your bot code (index.js, etc.)
 COPY . .
 
-# Set environment variable to help Puppeteer find the installed Chrome
+# 8. Set the path to the pre-installed Chrome
+# This prevents Puppeteer from trying to download a second browser.
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
-# Run the bot
+# 9. Force the OS to use software rendering for any GL calls
+ENV LIBGL_ALWAYS_SOFTWARE=1
+
+# 10. Start the bot
 CMD ["node", "index.js"]
