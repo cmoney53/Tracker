@@ -11,7 +11,7 @@
   }
   window._drendotShipTrackerInjected = true;
   
-  // Grid configuration
+  // Grid configuration (A-E columns, 1-5 rows)
   const GRID_CONFIG = {
     columns: ['a', 'b', 'c', 'd', 'e'],
     rows: ['1', '2', '3', '4', '5']
@@ -110,6 +110,13 @@
     return originalXHRSend.apply(this, arguments);
   };
   
+  // Convert numeric to grid
+  function numericToGrid(x, y) {
+    const colIndex = Math.max(0, Math.min(Math.floor(x), 4));
+    const rowIndex = Math.max(0, Math.min(Math.floor(y), 4));
+    return GRID_CONFIG.columns[colIndex] + GRID_CONFIG.rows[rowIndex];
+  }
+  
   // Detect coordinates from outgoing messages
   function detectCoordinatesFromOutgoing(data) {
     if (!data || typeof data !== "object") return;
@@ -149,19 +156,6 @@
     }
   }
   
-  // Convert numeric to grid
-  function numericToGrid(x, y) {
-    const colIndex = Math.floor(x);
-    const rowIndex = Math.floor(y);
-    
-    if (colIndex < 0 || colIndex >= GRID_CONFIG.columns.length ||
-        rowIndex < 0 || rowIndex >= GRID_CONFIG.rows.length) {
-      return null;
-    }
-    
-    return GRID_CONFIG.columns[colIndex] + GRID_CONFIG.rows[rowIndex];
-  }
-  
   // Extract coordinates from parsed data
   function extractCoordinates(obj) {
     if (!obj || typeof obj !== "object") return null;
@@ -174,7 +168,7 @@
     };
     
     // Check for ship arrays
-    const shipArrays = ["ships", "visibleShips", "hiddenShips", "allShips", "enemies", "targets"];
+    const shipArrays = ["ships", "visibleShips", "hiddenShips", "allShips", "enemies", "targets", "entities"];
     
     for (const key of shipArrays) {
       if (obj[key] && Array.isArray(obj[key])) {
@@ -189,6 +183,18 @@
               if (!result.hidden.includes(gridPos)) result.hidden.push(gridPos);
             }
           }
+        }
+      }
+    }
+    
+    // Check for player/local ship
+    if (obj.player || obj.localShip || obj.myShip) {
+      const playerShip = obj.player || obj.localShip || obj.myShip;
+      const gridPos = extractGridFromShip(playerShip);
+      if (gridPos) {
+        if (!result.all.includes(gridPos)) {
+          result.all.push(gridPos);
+          result.visible.push(gridPos);
         }
       }
     }
@@ -239,6 +245,11 @@
       const col = GRID_CONFIG.columns[ship.gridX];
       const row = GRID_CONFIG.rows[ship.gridY];
       if (col && row) return col + row;
+    }
+    
+    // Hex coordinates
+    if (ship.hex !== undefined && typeof ship.hex === "string" && /^[a-e][1-5]$/i.test(ship.hex)) {
+      return ship.hex.toLowerCase();
     }
     
     return null;
@@ -309,4 +320,3 @@
   
   console.log("[Drendot Ship Tracker] Injected script loaded");
 })();
-

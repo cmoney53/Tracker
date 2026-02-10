@@ -150,10 +150,12 @@ async function getStoredCoordinates() {
 async function addToHistory(coords) {
   const history = await getCoordinateHistory();
   
+  // Check if same as last entry
   if (history.length > 0) {
     const last = history[history.length - 1];
-    if (JSON.stringify(last.visible.sort()) === JSON.stringify(coords.visible.sort()) &&
-        JSON.stringify(last.hidden.sort()) === JSON.stringify(coords.hidden.sort())) {
+    const lastVisible = (last.visible || []).sort().join(',');
+    const currVisible = (coords.visible || []).sort().join(',');
+    if (lastVisible === currVisible) {
       return;
     }
   }
@@ -267,4 +269,3 @@ async function initializeAlarms() {
 initializeAlarms();
 
 console.log("Drendot Ship Tracker background service worker loaded");
-

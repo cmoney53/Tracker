@@ -1,3 +1,4 @@
+
 /**
  * Drendot.io Ship Tracker - Popup Script
  * Handles popup UI interactions and grid coordinates display
@@ -264,4 +265,5 @@ async function updateSetting(key, value) {
 
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", init);
+
 

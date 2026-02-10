@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drendot Ship Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>Ship Tracker</h1>
+      <span class="status-indicator" id="connection-status"></span>
+    </header>
+    
+    <section class="grid-preview-section">
+      <div class="mini-grid-display" id="mini-grid">
+        <div class="mini-grid-row">
+          <div class="mini-cell empty"></div>
+          <div class="mini-cell header">A</div>
+          <div class="mini-cell header">B</div>
+          <div class="mini-cell header">C</div>
+          <div class="mini-cell header">D</div>
+          <div class="mini-cell header">E</div>
+        <div class="mini-grid-row">
+          <div class="mini-cell header">5</div>
+          <div class="mini-cell" data-cell="a5"></div>
+          <div class="mini-cell" data-cell="b5"></div>
+          <div class="mini-cell" data-cell="c5"></div>
+          <div class="mini-cell" data-cell="d5"></div>
+          <div class="mini-cell" data-cell="e5"></div>
+        <div class="mini-grid-row">
+          <div class="mini-cell header">4</div>
+          <div class="mini-cell" data-cell="a4"></div>
+          <div class="mini-cell" data-cell="b4"></div>
+          <div class="mini-cell" data-cell="c4"></div>
+          <div class="mini-cell" data-cell="d4"></div>
+          <div class="mini-cell" data-cell="e4"></div>
+        <div class="mini-grid-row">
+          <div class="mini-cell header">3</div>
+          <div class="mini-cell" data-cell="a3"></div>
+          <div class="mini-cell" data-cell="b3"></div>
+          <div class="mini-cell" data-cell="c3"></div>
+          <div class="mini-cell" data-cell="d3"></div>
+          <div class="mini-cell" data-cell="e3"></div>
+        <div class="mini-grid-row">
+          <div class="mini-cell header">2</div>
+          <div class="mini-cell" data-cell="a2"></div>
+          <div class="mini-cell" data-cell="b2"></div>
+          <div class="mini-cell" data-cell="c2"></div>
+          <div class="mini-cell" data-cell="d2"></div>
+          <div class="mini-cell" data-cell="e2"></div>
+        <div class="mini-grid-row">
+          <div class="mini-cell header">1</div>
+          <div class="mini-cell" data-cell="a1"></div>
+          <div class="mini-cell" data-cell="b1"></div>
+          <div class="mini-cell" data-cell="c1"></div>
+          <div class="mini-cell" data-cell="d1"></div>
+          <div class="mini-cell" data-cell="e1"></div>
+      </div>
+      
+      <div class="grid-stats-display">
+        <div class="stat-item">
+          <span class="stat-dot visible"></span>
+          <span>Visible: <strong id="visible-count">0</strong></span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-dot hidden"></span>
+          <span>Hidden: <strong id="hidden-count">0</strong></span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-dot total"></span>
+          <span>Total: <strong id="total-count">0</strong></span>
+        </div>
+      
+      <div class="last-update">
+        Last Update: <span id="last-update-time">Never</span>
+      </div>
+    </section>
+    
+    <section class="ship-list-section">
+      <h2>Visible Ships</h2>
+      <div class="ship-list" id="visible-ships">
+        <div class="ship-list-empty">No visible ships detected</div>
+    </section>
+    
+    <section class="ship-list-section hidden-section">
+      <h2>Hidden Ships</h2>
+      <div class="ship-list" id="hidden-ships">
+        <div class="ship-list-empty">No hidden ships detected</div>
+    </section>
+    
+    <section class="actions-section">
+      <button class="btn btn-primary" id="refresh-btn">Refresh</button>
+      <button class="btn btn-secondary" id="update-motd-btn">Update MOTD</button>
+      <button class="btn btn-danger" id="clear-history-btn">Clear</button>
+    </section>
+    
+    <section class="settings-section">
+      <h2>Settings</h2>
+      
+      <div class="setting-item">
+        <label for="auto-update">Auto-Update MOTD</label>
+        <input type="checkbox" id="auto-update" checked>
+      </div>
+      
+      <div class="setting-item">
+        <label for="show-overlay">Show Overlay</label>
+        <input type="checkbox" id="show-overlay" checked>
+      </div>
+      
+      <div class="setting-item">
+        <label for="history-enabled">Track History</label>
+        <input type="checkbox" id="history-enabled" checked>
+      </div>
+    </section>
+    
+    <footer class="popup-footer">
+      <span class="version">v1.0.0</span>
+      <span class="credit">Drendot.io Grid Tracker</span>
+    </footer>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
