@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Drendot.io Ship Tracker",
+  "version": "1.0.0",
+  "description": "Track ship coordinates on drendot.io and display them in the MOTD",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": [
+    "*://*.drendot.io/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.drendot.io/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Ship Tracker"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["*://*.drendot.io/*"]
+    }
+  ]
+}
+

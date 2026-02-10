@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drendot Ship Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <h1>🚢 Ship Tracker</h1>
+      <span class="status-indicator" id="connection-status">●</span>
+    </header>
+    
+    <section class="coordinates-section">
+      <div class="coord-display">
+        <div class="coord-row">
+          <span class="coord-label">X Position</span>
+          <span class="coord-value" id="coord-x">--</span>
+        </div>
+        <div class="coord-row">
+          <span class="coord-label">Y Position</span>
+          <span class="coord-value" id="coord-y">--</span>
+        </div>
+        <div class="coord-row">
+          <span class="coord-label">Angle</span>
+          <span class="coord-value" id="coord-angle">--</span>
+        </div>
+      </div>
+      
+      <div class="last-update">
+        Last Update: <span id="last-update-time">Never</span>
+      </div>
+    </section>
+    
+    <section class="actions-section">
+      <button class="btn btn-primary" id="refresh-btn">
+        ↻ Refresh
+      </button>
+      <button class="btn btn-secondary" id="update-motd-btn">
+        📝 Update MOTD
+      </button>
+      <button class="btn btn-danger" id="clear-history-btn">
+        🗑 Clear History
+      </button>
+    </section>
+    
+    <section class="settings-section">
+      <h2>⚙️ Settings</h2>
+      
+      <div class="setting-item">
+        <label for="auto-update">Auto-Update MOTD</label>
+        <input type="checkbox" id="auto-update" checked>
+      </div>
+      
+      <div class="setting-item">
+        <label for="show-overlay">Show Overlay</label>
+        <input type="checkbox" id="show-overlay" checked>
+      </div>
+      
+      <div class="setting-item">
+        <label for="history-enabled">Track History</label>
+        <input type="checkbox" id="history-enabled" checked>
+      </div>
+      
+      <div class="setting-item">
+        <label for="precision">Coordinate Precision</label>
+        <select id="precision">
+          <option value="0">0 decimals</option>
+          <option value="1">1 decimal</option>
+          <option value="2" selected>2 decimals</option>
+          <option value="3">3 decimals</option>
+          <option value="4">4 decimals</option>
+        </select>
+      </div>
+    </section>
+    
+    <section class="history-section">
+      <h2>📜 Coordinate History</h2>
+      <div class="history-list" id="history-list">
+        <div class="history-empty">No history yet</div>
+      </div>
+      <button class="btn btn-small" id="export-btn">Export CSV</button>
+    </section>
+    
+    <footer class="popup-footer">
+      <span class="version">v1.0.0</span>
+      <span class="credit">Drendot.io Ship Tracker</span>
+    </footer>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
+

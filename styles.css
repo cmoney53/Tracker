@@ -1,0 +1,493 @@
+/**
+ * Drendot.io Ship Tracker - Styles
+ * Styles for popup UI and injected overlays
+ */
+
+/* ================================
+   Popup Styles
+   ================================ */
+
+.popup-container {
+  width: 320px;
+  max-height: 500px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #e0e0e0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+}
+
+/* Header */
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popup-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+.status-indicator.connected {
+  background: #51cf66;
+  box-shadow: 0 0 8px rgba(81, 207, 102, 0.5);
+}
+
+.status-indicator.disconnected {
+  background: #ff6b6b;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
+}
+
+/* Sections */
+section {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+section h2 {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #868e96;
+}
+
+/* Coordinates Section */
+.coordinates-section {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.coord-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coord-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+}
+
+.coord-label {
+  font-size: 12px;
+  color: #adb5bd;
+}
+
+.coord-value {
+  font-family: 'Courier New', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #4dabf7;
+  text-shadow: 0 0 10px rgba(77, 171, 247, 0.3);
+}
+
+.last-update {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #6c757d;
+  text-align: right;
+}
+
+/* Actions Section */
+.actions-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #4dabf7 0%, #339af0 100%);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #339af0 0%, #228be6 100%);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #51cf66 0%, #40c057 100%);
+  color: #fff;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #40c057 0%, #37b24d 100%);
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff6b6b 0%, #fa5252 100%);
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fa5252 0%, #f03e3e 100%);
+  transform: translateY(-1px);
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-small:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Settings Section */
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-item label {
+  font-size: 12px;
+  color: #adb5bd;
+}
+
+.setting-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #4dabf7;
+}
+
+.setting-item select {
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.setting-item select:focus {
+  outline: none;
+  border-color: #4dabf7;
+}
+
+/* History Section */
+.history-list {
+  max-height: 150px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  font-size: 11px;
+  transition: background 0.2s;
+}
+
+.history-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.history-time {
+  color: #868e96;
+  font-family: 'Courier New', monospace;
+}
+
+.history-coords {
+  color: #4dabf7;
+  font-family: 'Courier New', monospace;
+}
+
+.history-angle {
+  color: #51cf66;
+  font-family: 'Courier New', monospace;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 20px;
+  color: #6c757d;
+  font-size: 12px;
+}
+
+/* Footer */
+.popup-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 10px;
+  color: #6c757d;
+}
+
+.version {
+  opacity: 0.7;
+}
+
+/* ================================
+   Injected Overlay Styles
+   ================================ */
+
+/* Ship tracker overlay */
+#drendot-ship-tracker-overlay {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #00ff00;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 12px;
+  z-index: 2147483647;
+  border: 1px solid #00ff00;
+  box-shadow: 
+    0 0 15px rgba(0, 255, 0, 0.2),
+    0 4px 20px rgba(0, 0, 0, 0.5);
+  min-width: 140px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+#drendot-ship-tracker-overlay:hover {
+  transform: scale(1.02);
+}
+
+.tracker-header {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tracker-coords {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tracker-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tracker-label {
+  color: #88ff88;
+  font-weight: 600;
+  min-width: 20px;
+}
+
+.tracker-value {
+  font-weight: 700;
+  color: #00ff00;
+  text-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+}
+
+.tracker-status {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 255, 0, 0.2);
+  font-size: 10px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Minimized overlay state */
+#drendot-ship-tracker-overlay.minimized {
+  padding: 8px 12px;
+}
+
+#drendot-ship-tracker-overlay.minimized .tracker-coords,
+#drendot-ship-tracker-overlay.minimized .tracker-status {
+  display: none;
+}
+
+/* ================================
+   MOTD Coordinate Display
+   ================================ */
+
+/* Enhanced MOTD text with coordinates */
+#motd-text.drendot-enhanced {
+  background: rgba(0, 0, 0, 0.7);
+  padding: 10px 15px;
+  border-radius: 4px;
+  border-left: 3px solid #00ff00;
+  font-family: 'Courier New', monospace;
+  color: #00ff00;
+}
+
+/* Coordinate highlight in MOTD */
+.motd-coord {
+  color: #00ff00;
+  font-weight: bold;
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.motd-coord-x {
+  color: #4dabf7;
+}
+
+.motd-coord-y {
+  color: #51cf66;
+}
+
+.motd-coord-angle {
+  color: #ff6b6b;
+}
+
+/* ================================
+   Animations
+   ================================ */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(0, 255, 0, 0.4);
+  }
+}
+
+.tracker-status.tracking {
+  animation: pulse 1.5s infinite;
+}
+
+#drendot-ship-tracker-overlay.active {
+  animation: glow 2s infinite;
+}
+
+/* Coordinate update flash effect */
+@keyframes coordFlash {
+  0% {
+    background: rgba(0, 255, 0, 0.3);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.coord-updated {
+  animation: coordFlash 0.5s ease-out;
+}
+
+/* ================================
+   Responsive Adjustments
+   ================================ */
+
+@media (max-width: 360px) {
+  .popup-container {
+    width: 280px;
+  }
+  
+  .coord-value {
+    font-size: 14px;
+  }
+  
+  .btn {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}
+
+/* ================================
+   Utility Classes
+   ================================ */
+
+.hidden {
+  display: none !important;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
