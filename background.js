@@ -22,9 +22,12 @@ const DEFAULT_SETTINGS = {
   alertOnCoordinateChange: false
 };
 
+// Store active connections
+const activePorts = new Set();
+
 // Initialize extension
-chrome.runtime.onInstalled.addListener(async () => {
-  console.log("Drendot Ship Tracker installed");
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log("Drendot Ship Tracker installed:", details.reason);
   
   // Initialize default settings
   await chrome.storage.local.set({
@@ -32,6 +35,12 @@ chrome.runtime.onInstalled.addListener(async () => {
     [STORAGE_KEYS.COORD_HISTORY]: [],
     [STORAGE_KEYS.CONNECTION_STATUS]: "disconnected"
   });
+});
+
+// Initialize on startup
+chrome.runtime.onStartup.addListener(async () => {
+  console.log("Drendot Ship Tracker startup");
+  await chrome.storage.local.set({ [STORAGE_KEYS.CONNECTION_STATUS]: "disconnected" });
 });
 
 // Handle messages from content scripts and popup
@@ -42,6 +51,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Handle port connections (for persistent connections)
 chrome.runtime.onConnect.addListener((port) => {
+  activePorts.add(port);
+  
+  port.onDisconnect.addListener(() => {
+    activePorts.delete(port);
+  });
+  
   if (port.name === "content-background") {
     handleContentConnection(port);
   } else if (port.name === "popup-background") {
@@ -50,9 +65,7 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 // Handle content script connections
-async function handleContentConnection(port) {
-  console.log("Content script connected");
-  
+function handleContentConnection(port) {
   port.onMessage.addListener(async (message) => {
     if (message.type === "COORDINATES_UPDATE") {
       await handleCoordinateUpdate(message.data, port.sender);
@@ -60,10 +73,6 @@ async function handleContentConnection(port) {
       const coords = await getStoredCoordinates();
       port.postMessage({ type: "COORDINATES_UPDATE", data: coords });
     }
-  });
-  
-  port.onDisconnect.addListener(() => {
-    console.log("Content script disconnected");
   });
 }
 
@@ -150,10 +159,18 @@ async function handleCoordinateUpdate(data, sender) {
   // Update connection status
   await chrome.storage.local.set({ [STORAGE_KEYS.CONNECTION_STATUS]: "connected" });
   
-  // Notify popup if open
-  notifyPopup({
-    type: "COORDINATES_UPDATE",
-    data: coords
+  // Broadcast to all connected ports
+  broadcastToAll({ type: "COORDINATES_UPDATE", data: coords });
+}
+
+// Broadcast message to all connected ports
+function broadcastToAll(message) {
+  activePorts.forEach(port => {
+    try {
+      port.postMessage(message);
+    } catch (e) {
+      // Port might be disconnected
+    }
   });
 }
 
@@ -274,23 +291,6 @@ function notifyContentScript(message) {
   });
 }
 
-// Notify popup
-function notifyPopup(message) {
-  // Popup connection will handle this
-}
-
-// Web request interception for additional data collection
-chrome.webRequest.onCompleted.addListener(
-  (details) => {
-    if (details.url.includes("drendot.io")) {
-      chrome.storage.local.set({ 
-        [STORAGE_KEYS.CONNECTION_STATUS]: "api_request_completed" 
-      });
-    }
-  },
-  { urls: ["*://*.drendot.io/*"] }
-);
-
 // Cleanup old history entries (older than 24 hours)
 async function cleanupHistory() {
   const history = await getCoordinateHistory();
@@ -303,21 +303,30 @@ async function cleanupHistory() {
   }
 }
 
-// Run cleanup every hour
-setInterval(cleanupHistory, 60 * 60 * 1000);
-
-// Alarms for periodic tasks
-chrome.alarms.create("cleanup", { periodInMinutes: 60 });
-chrome.alarms.create("heartbeat", { periodInMinutes: 5 });
-
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "cleanup") {
-    cleanupHistory();
-  } else if (alarm.name === "heartbeat") {
-    // Send heartbeat to content scripts
-    notifyContentScript({ type: "HEARTBEAT" });
+// Initialize alarms for periodic tasks
+async function initializeAlarms() {
+  try {
+    if (chrome.alarms) {
+      await chrome.alarms.create("cleanup", { periodInMinutes: 60 });
+      await chrome.alarms.create("heartbeat", { periodInMinutes: 5 });
+      
+      chrome.alarms.onAlarm.addListener((alarm) => {
+        if (alarm.name === "cleanup") {
+          cleanupHistory();
+        } else if (alarm.name === "heartbeat") {
+          broadcastToAll({ type: "HEARTBEAT" });
+        }
+      });
+      
+      console.log("Alarms initialized");
+    }
+  } catch (e) {
+    console.log("Alarms API not available:", e);
   }
-});
+}
+
+// Call initializeAlarms when service worker starts
+initializeAlarms();
 
 console.log("Drendot Ship Tracker background service worker loaded");
 
