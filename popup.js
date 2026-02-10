@@ -1,37 +1,27 @@
 /**
  * Drendot.io Ship Tracker - Popup Script
- * Handles popup UI interactions and coordinates display
+ * Handles popup UI interactions and grid coordinates display
  */
 
 // DOM Elements
 const elements = {
-  // Status
   connectionStatus: document.getElementById("connection-status"),
-  
-  // Coordinates
-  coordX: document.getElementById("coord-x"),
-  coordY: document.getElementById("coord-y"),
-  coordAngle: document.getElementById("coord-angle"),
+  visibleCount: document.getElementById("visible-count"),
+  hiddenCount: document.getElementById("hidden-count"),
+  totalCount: document.getElementById("total-count"),
   lastUpdateTime: document.getElementById("last-update-time"),
-  
-  // Buttons
+  visibleShips: document.getElementById("visible-ships"),
+  hiddenShips: document.getElementById("hidden-ships"),
   refreshBtn: document.getElementById("refresh-btn"),
   updateMotdBtn: document.getElementById("update-motd-btn"),
   clearHistoryBtn: document.getElementById("clear-history-btn"),
-  exportBtn: document.getElementById("export-btn"),
-  
-  // Settings
   autoUpdateCheckbox: document.getElementById("auto-update"),
   showOverlayCheckbox: document.getElementById("show-overlay"),
-  historyEnabledCheckbox: document.getElementById("history-enabled"),
-  precisionSelect: document.getElementById("precision"),
-  
-  // History
-  historyList: document.getElementById("history-list")
+  historyEnabledCheckbox: document.getElementById("history-enabled")
 };
 
 // Current state
-let currentCoordinates = { x: null, y: null, angle: null };
+let currentCoordinates = { visible: [], hidden: [], all: [] };
 let currentSettings = null;
 
 // Initialize popup
@@ -39,8 +29,6 @@ async function init() {
   setupEventListeners();
   await loadDashboard();
   connectToBackground();
-  
-  // Set up periodic refresh
   setInterval(loadDashboard, 1000);
 }
 
@@ -59,11 +47,6 @@ function setupEventListeners() {
     clearHistory();
   });
   
-  elements.exportBtn.addEventListener("click", () => {
-    exportHistory();
-  });
-  
-  // Settings changes
   elements.autoUpdateCheckbox.addEventListener("change", (e) => {
     updateSetting("autoUpdateMOTD", e.target.checked);
   });
@@ -76,10 +59,6 @@ function setupEventListeners() {
   elements.historyEnabledCheckbox.addEventListener("change", (e) => {
     updateSetting("historyEnabled", e.target.checked);
   });
-  
-  elements.precisionSelect.addEventListener("change", (e) => {
-    updateSetting("coordinatePrecision", parseInt(e.target.value));
-  });
 }
 
 // Connect to background script
@@ -91,7 +70,6 @@ function connectToBackground() {
   });
   
   port.onDisconnect.addListener(() => {
-    // Try to reconnect
     setTimeout(connectToBackground, 1000);
   });
 }
@@ -102,8 +80,6 @@ function handleBackgroundMessage(message) {
     updateCoordinatesDisplay(message.data);
   } else if (message.type === "DASHBOARD_DATA") {
     updateDashboard(message.data);
-  } else if (message.type === "EXPORT_DATA") {
-    downloadExport(message.data, message.filename);
   }
 }
 
@@ -139,10 +115,10 @@ function updateDashboard(data) {
 function updateCoordinatesDisplay(coords) {
   currentCoordinates = coords;
   
-  // Update coordinate values
-  elements.coordX.textContent = coords.x !== null ? formatCoordinate(coords.x) : "--";
-  elements.coordY.textContent = coords.y !== null ? formatCoordinate(coords.y) : "--";
-  elements.coordAngle.textContent = coords.angle !== null ? formatCoordinate(coords.angle) + "°" : "--";
+  // Update counts
+  elements.visibleCount.textContent = coords.visible.length;
+  elements.hiddenCount.textContent = coords.hidden.length;
+  elements.totalCount.textContent = coords.all.length;
   
   // Update timestamp
   if (coords.timestamp) {
@@ -151,21 +127,62 @@ function updateCoordinatesDisplay(coords) {
   }
   
   // Update connection status
-  if (coords.x !== null) {
+  if (coords.all.length > 0) {
     elements.connectionStatus.classList.add("connected");
     elements.connectionStatus.classList.remove("disconnected");
-    elements.connectionStatus.title = "Connected - Tracking Active";
   } else {
     elements.connectionStatus.classList.remove("connected");
     elements.connectionStatus.classList.add("disconnected");
-    elements.connectionStatus.title = "Disconnected - Waiting for coordinates";
   }
+  
+  // Update mini grid
+  updateMiniGrid(coords);
+  
+  // Update ship lists
+  updateShipLists(coords);
 }
 
-// Format coordinate for display
-function formatCoordinate(value, precision = null) {
-  const prec = precision !== null ? precision : (currentSettings?.coordinatePrecision || 2);
-  return value.toFixed(prec);
+// Update mini grid display
+function updateMiniGrid(coords) {
+  const visibleSet = new Set(coords.visible);
+  const hiddenSet = new Set(coords.hidden);
+  
+  const cells = document.querySelectorAll(".mini-grid-row .mini-cell[data-cell]");
+  cells.forEach(cell => {
+    const cellId = cell.dataset.cell;
+    cell.classList.remove("has-ship-visible", "has-ship-hidden");
+    
+    if (visibleSet.has(cellId)) {
+      cell.classList.add("has-ship-visible");
+      cell.textContent = cellId;
+    } else if (hiddenSet.has(cellId)) {
+      cell.classList.add("has-ship-hidden");
+      cell.textContent = "?";
+    } else {
+      cell.textContent = "";
+    }
+  });
+}
+
+// Update ship lists
+function updateShipLists(coords) {
+  // Visible ships
+  if (coords.visible.length === 0) {
+    elements.visibleShips.innerHTML = '<div class="ship-list-empty">No visible ships detected</div>';
+  } else {
+    elements.visibleShips.innerHTML = coords.visible.sort().map(coord => 
+      `<div class="ship-item visible">${coord}</div>`
+    ).join("");
+  }
+  
+  // Hidden ships
+  if (coords.hidden.length === 0) {
+    elements.hiddenShips.innerHTML = '<div class="ship-list-empty">No hidden ships detected</div>';
+  } else {
+    elements.hiddenShips.innerHTML = coords.hidden.sort().map(coord => 
+      `<div class="ship-item hidden">${coord}</div>`
+    ).join("");
+  }
 }
 
 // Update settings display
@@ -173,34 +190,11 @@ function updateSettingsDisplay(settings) {
   elements.autoUpdateCheckbox.checked = settings.autoUpdateMOTD;
   elements.showOverlayCheckbox.checked = settings.showOverlay;
   elements.historyEnabledCheckbox.checked = settings.historyEnabled;
-  elements.precisionSelect.value = settings.coordinatePrecision;
 }
 
-// Update history list display
+// Update history display
 function updateHistoryDisplay(history) {
-  if (!history || history.length === 0) {
-    elements.historyList.innerHTML = '<div class="history-empty">No history yet</div>';
-    return;
-  }
-  
-  // Show last 10 entries
-  const recentHistory = history.slice(-10).reverse();
-  
-  const html = recentHistory.map((coord, index) => `
-    <div class="history-item" data-index="${history.length - 10 + index}">
-      <span class="history-time">${formatTime(coord.timestamp)}</span>
-      <span class="history-coords">X:${formatCoordinate(coord.x)} Y:${formatCoordinate(coord.y)}</span>
-      ${coord.angle !== null ? `<span class="history-angle">∠${formatCoordinate(coord.angle)}°</span>` : ''}
-    </div>
-  `).join("");
-  
-  elements.historyList.innerHTML = html;
-}
-
-// Format timestamp for display
-function formatTime(timestamp) {
-  const date = new Date(timestamp);
-  return date.toLocaleTimeString();
+  // Could be enhanced to show history in grid format
 }
 
 // Send message to background script
@@ -220,9 +214,7 @@ function sendMessage(message) {
 function sendMessageToContent(message) {
   chrome.tabs.query({ active: true, url: "*://*.drendot.io/*" }, (tabs) => {
     if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {
-        // Content script might not be loaded
-      });
+      chrome.tabs.sendMessage(tabs[0].id, message).catch(() => {});
     }
   });
 }
@@ -244,52 +236,24 @@ async function forceRefreshCoordinates() {
 
 // Update MOTD on the page
 async function updateMOTD() {
-  if (currentCoordinates.x === null) {
+  if (currentCoordinates.all.length === 0) {
     alert("No coordinates available to update MOTD");
     return;
   }
   
   sendMessageToContent({ type: "UPDATE_MOTD", coordinates: currentCoordinates });
   
-  // Visual feedback
-  elements.updateMotdBtn.textContent = "✓ Updated!";
+  elements.updateMotdBtn.textContent = "Updated!";
   setTimeout(() => {
-    elements.updateMotdBtn.textContent = "📝 Update MOTD";
+    elements.updateMotdBtn.textContent = "Update MOTD";
   }, 1500);
 }
 
 // Clear coordinate history
 async function clearHistory() {
-  if (confirm("Are you sure you want to clear all coordinate history?")) {
+  if (confirm("Clear all coordinate history?")) {
     await sendMessage({ type: "CLEAR_HISTORY" });
-    updateHistoryDisplay([]);
   }
-}
-
-// Export history as CSV
-async function exportHistory() {
-  try {
-    const response = await sendMessage({ type: "EXPORT_HISTORY" });
-    if (response && response.type === "EXPORT_DATA") {
-      downloadExport(response.data, response.filename);
-    }
-  } catch (error) {
-    console.error("Failed to export history:", error);
-  }
-}
-
-// Download exported data
-function downloadExport(data, filename) {
-  const blob = new Blob([data], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 // Update a single setting
@@ -300,14 +264,4 @@ async function updateSetting(key, value) {
 
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", init);
-
-// Export functions for testing
-window.popupAPI = {
-  refresh: loadDashboard,
-  updateMOTD,
-  clearHistory,
-  exportHistory,
-  getCoordinates: () => currentCoordinates,
-  getSettings: () => currentSettings
-};
 

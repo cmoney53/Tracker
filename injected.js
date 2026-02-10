@@ -1,29 +1,32 @@
 /**
  * Drendot.io Ship Tracker - Injected Script
  * Runs in page context for advanced WebSocket and API interception
- * This file is loaded into the page itself, not as a content script
  */
 
 (function() {
   "use strict";
   
-  // Prevent multiple injections
   if (window._drendotShipTrackerInjected) {
     return;
   }
   window._drendotShipTrackerInjected = true;
   
-  // Coordinate storage accessible from page
+  // Grid configuration
+  const GRID_CONFIG = {
+    columns: ['a', 'b', 'c', 'd', 'e'],
+    rows: ['1', '2', '3', '4', '5']
+  };
+  
+  // Ship coordinates state
   window._shipCoordinates = {
-    x: null,
-    y: null,
-    angle: null,
+    visible: [],
+    hidden: [],
+    all: [],
     timestamp: null
   };
   
-  // Message handler for extension communication
+  // Listen for extension messages
   window.addEventListener("message", (event) => {
-    // Only accept messages from same page
     if (event.source !== window) return;
     
     if (event.data.type === "DRENDOT_COORDS_UPDATE") {
@@ -32,7 +35,6 @@
         timestamp: Date.now()
       };
       
-      // Notify extension
       window.postMessage({
         type: "DRENDOT_COORDS_FROM_PAGE",
         coordinates: window._shipCoordinates
@@ -40,21 +42,18 @@
     }
   });
   
-  // Intercept WebSocket at a deeper level
+  // Intercept WebSocket
   const OriginalWebSocket = window.WebSocket;
   
-  class DeepInterceptedWebSocket extends OriginalWebSocket {
+  class InterceptedWebSocket extends OriginalWebSocket {
     constructor(url, protocols) {
       super(url, protocols);
-      this._drendotTracker = true;
       this._setupDeepListener();
     }
     
     _setupDeepListener() {
-      // Override send to intercept outgoing messages
       const originalSend = this.send;
       this.send = function(data) {
-        // Try to parse and send coordinates back
         try {
           if (typeof data === "string") {
             const parsed = JSON.parse(data);
@@ -64,21 +63,18 @@
         return originalSend.apply(this, arguments);
       };
       
-      // Intercept incoming messages using addEventListener
       this.addEventListener("message", (event) => {
         detectCoordinatesFromIncoming(event.data);
       });
     }
   }
   
-  window.WebSocket = DeepInterceptedWebSocket;
+  window.WebSocket = InterceptedWebSocket;
   
-  // Deep API intercept for fetch
+  // Intercept fetch
   const originalFetch = window.fetch;
   window.fetch = async function(input, init) {
     const response = await originalFetch.apply(this, arguments);
-    
-    // Clone and intercept response
     const cloned = response.clone();
     cloned.text().then((text) => {
       try {
@@ -89,11 +85,10 @@
         }
       } catch (e) {}
     }).catch(() => {});
-    
     return response;
   };
   
-  // Deep XMLHttpRequest intercept
+  // Intercept XMLHttpRequest
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
   
@@ -115,11 +110,9 @@
     return originalXHRSend.apply(this, arguments);
   };
   
-  // Detect coordinates from outgoing WebSocket messages
+  // Detect coordinates from outgoing messages
   function detectCoordinatesFromOutgoing(data) {
     if (!data || typeof data !== "object") return;
-    
-    // Check for coordinate fields in outgoing messages
     const coords = extractCoordinates(data);
     if (coords) {
       updateCoordinates(coords);
@@ -127,7 +120,7 @@
     }
   }
   
-  // Detect coordinates from incoming WebSocket messages
+  // Detect coordinates from incoming messages
   function detectCoordinatesFromIncoming(data) {
     try {
       if (typeof data === "string") {
@@ -148,8 +141,6 @@
         }
       }
     } catch (e) {
-      // Not JSON or parse failed
-      // Try text-based coordinate detection
       const coords = extractCoordinatesFromText(data);
       if (coords) {
         updateCoordinates(coords);
@@ -158,86 +149,126 @@
     }
   }
   
+  // Convert numeric to grid
+  function numericToGrid(x, y) {
+    const colIndex = Math.floor(x);
+    const rowIndex = Math.floor(y);
+    
+    if (colIndex < 0 || colIndex >= GRID_CONFIG.columns.length ||
+        rowIndex < 0 || rowIndex >= GRID_CONFIG.rows.length) {
+      return null;
+    }
+    
+    return GRID_CONFIG.columns[colIndex] + GRID_CONFIG.rows[rowIndex];
+  }
+  
   // Extract coordinates from parsed data
   function extractCoordinates(obj) {
     if (!obj || typeof obj !== "object") return null;
     
-    const coords = { x: null, y: null, angle: null };
-    let found = false;
-    
-    // Direct field matching
-    const fieldMappings = {
-      x: ["x", "X", "posX", "positionX", "shipX", "pos", "px"],
-      y: ["y", "Y", "posY", "positionY", "shipY", "py"],
-      angle: ["angle", "Angle", "rotation", "dir", "direction", "heading"]
+    const result = {
+      visible: [],
+      hidden: [],
+      all: [],
+      timestamp: Date.now()
     };
     
-    for (const [coordType, fieldNames] of Object.entries(fieldMappings)) {
-      for (const fieldName of fieldNames) {
-        if (obj[fieldName] !== undefined) {
-          coords[coordType] = parseFloat(obj[fieldName]);
-          found = true;
+    // Check for ship arrays
+    const shipArrays = ["ships", "visibleShips", "hiddenShips", "allShips", "enemies", "targets"];
+    
+    for (const key of shipArrays) {
+      if (obj[key] && Array.isArray(obj[key])) {
+        for (const ship of obj[key]) {
+          const gridPos = extractGridFromShip(ship);
+          if (gridPos) {
+            if (!result.all.includes(gridPos)) result.all.push(gridPos);
+            if (ship.visible !== false && ship.hidden !== true) {
+              if (!result.visible.includes(gridPos)) result.visible.push(gridPos);
+            }
+            if (ship.hidden === true || ship.visible === false) {
+              if (!result.hidden.includes(gridPos)) result.hidden.push(gridPos);
+            }
+          }
         }
       }
     }
     
-    // Check nested objects
-    for (const key of ["data", "payload", "state", "gameState", "player", "ship"]) {
-      if (obj[key] && typeof obj[key] === "object") {
-        const nested = extractCoordinates(obj[key]);
-        if (nested.x !== null) coords.x = nested.x;
-        if (nested.y !== null) coords.y = nested.y;
-        if (nested.angle !== null) coords.angle = nested.angle;
-        if (nested.x !== null) found = true;
+    // Check single ship
+    const singleShip = extractGridFromShip(obj);
+    if (singleShip) {
+      if (!result.all.includes(singleShip)) {
+        result.all.push(singleShip);
+        result.visible.push(singleShip);
       }
     }
     
-    // Check for array data
-    if (Array.isArray(obj)) {
-      for (const item of obj) {
-        const nested = extractCoordinates(item);
-        if (nested.x !== null) {
-          coords.x = nested.x;
-          coords.y = nested.y;
-          coords.angle = nested.angle;
-          found = true;
-          break;
-        }
-      }
-    }
+    // Remove duplicates
+    result.visible = [...new Set(result.visible)];
+    result.hidden = [...new Set(result.hidden)];
+    result.all = [...new Set(result.all)];
     
-    return found ? coords : null;
+    return result.all.length > 0 ? result : null;
   }
   
-  // Extract coordinates from text
-  function extractCoordinatesFromText(text) {
-    if (typeof text !== "string") return null;
+  // Extract grid from ship object
+  function extractGridFromShip(ship) {
+    if (!ship || typeof ship !== "object") return null;
     
-    const coords = { x: null, y: null, angle: null };
+    // Direct x,y
+    if (ship.x !== undefined && ship.y !== undefined) {
+      return numericToGrid(parseFloat(ship.x), parseFloat(ship.y));
+    }
     
-    // Pattern matching for various coordinate formats
-    const patterns = [
-      // [x, y] or [x, y, angle]
-      /\[(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)(?:\s*,\s*(-?\d+\.?\d*))?\]/,
-      // x: 123.45, y: 678.90
-      /x[:\s=]+(-?\d+\.?\d*).*?y[:\s=]+(-?\d+\.?\d*)/si,
-      // Position: (123.45, 678.90)
-      /pos(?:ition)?[:\s(]+(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/i,
-      // Simple coordinate pairs
-      /(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)/
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) {
-        coords.x = parseFloat(match[1]);
-        coords.y = parseFloat(match[2]);
-        if (match[3]) coords.angle = parseFloat(match[3]);
-        return coords;
+    // Position object
+    if (ship.position && typeof ship.position === "object") {
+      if (ship.position.x !== undefined && ship.position.y !== undefined) {
+        return numericToGrid(parseFloat(ship.position.x), parseFloat(ship.position.y));
       }
+    }
+    
+    // Grid string
+    if (ship.grid || ship.positionGrid || ship.cell) {
+      const gridStr = ship.grid || ship.positionGrid || ship.cell;
+      if (typeof gridStr === "string" && /^[a-e][1-5]$/i.test(gridStr)) {
+        return gridStr.toLowerCase();
+      }
+    }
+    
+    // Index-based
+    if (ship.gridX !== undefined && ship.gridY !== undefined) {
+      const col = GRID_CONFIG.columns[ship.gridX];
+      const row = GRID_CONFIG.rows[ship.gridY];
+      if (col && row) return col + row;
     }
     
     return null;
+  }
+  
+  // Extract from text
+  function extractCoordinatesFromText(text) {
+    if (typeof text !== "string") return null;
+    
+    const result = {
+      visible: [],
+      hidden: [],
+      all: [],
+      timestamp: Date.now()
+    };
+    
+    // Grid patterns like "a5", "c1"
+    const gridPattern = /([a-e])([1-5])/gi;
+    let match;
+    
+    while ((match = gridPattern.exec(text)) !== null) {
+      const gridPos = match[1].toLowerCase() + match[2];
+      if (!result.all.includes(gridPos)) result.all.push(gridPos);
+    }
+    
+    if (result.all.length > 0 && result.visible.length === 0 && result.hidden.length === 0) {
+      result.visible = [...result.all];
+    }
+    
+    return result.all.length > 0 ? result : null;
   }
   
   // Update stored coordinates
@@ -249,7 +280,7 @@
     };
   }
   
-  // Notify extension of coordinates
+  // Notify extension
   function notifyExtension(coords) {
     window.postMessage({
       type: "DRENDOT_COORDS_FROM_PAGE",
@@ -260,7 +291,7 @@
     }, "*");
   }
   
-  // Expose API for page access
+  // Expose API
   window._drendotShipTrackerAPI = {
     getCoordinates: () => ({ ...window._shipCoordinates }),
     setCoordinates: (coords) => {
@@ -272,7 +303,8 @@
         type: "DRENDOT_FORCE_UPDATE_MOTD",
         coordinates: window._shipCoordinates
       }, "*");
-    }
+    },
+    getGridConfig: () => ({ ...GRID_CONFIG })
   };
   
   console.log("[Drendot Ship Tracker] Injected script loaded");
